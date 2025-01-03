@@ -69,6 +69,15 @@ function OnColumnDataRequested(/* ScriptColumnData */ data) {
     mimeType = re[1]
     encoding = re[2]
 
+    if(encoding === "utf-8") {
+      var handle = fsu.OpenFile(filePath)
+      var bom = handle.Read(3)
+      handle.Close()
+      if(bom(0) === 0xEF && bom(1) === 0xBB && bom(2) === 0xBF) {
+        encoding = "utf-8 bom"
+      }
+    }
+
     if(encoding === "binary" && Script.config.ignoreBinaryEncoding) {
       encoding = ""
     }
