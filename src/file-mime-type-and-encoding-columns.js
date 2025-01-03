@@ -4,7 +4,7 @@ var fsu = DOpus.FSUtil()
 var stt = DOpus.Create().StringTools()
 
 function OnInit(/* ScriptInitData */ data) {
-  data.name = "File MIME type column using file.exe"
+  data.name = "File_MIME_type_and_Encoding_columns_using_file.exe"
   data.desc = "Shows the MIME type using the file.exe utility"
   data.default_enable = true
   data.config_desc = DOpus.NewMap()
@@ -12,112 +12,114 @@ function OnInit(/* ScriptInitData */ data) {
   data.config.debug = false
   data.config_desc("fileExeFullName") = "Path to the 'file.exe' utility. You can get this utility by installing 'Git for Windows': https://git-scm.com/download/win"
   data.config.fileExeFullName = "%ProgramFiles%/Git/usr/bin/file.exe"
+  data.config_desc("fileExeMagicFileFullName") = "Specify the path to the 'magic.mgc' file. This is only needed if you use a portable version of 'file.exe'. Keep this empty if you use 'Git for Windows'."
+  data.config.fileExeMagicFileFullName = ""
+  data.config_desc("ignoreBinaryEncoding") = "Don't show 'binary' encoding. Leave the Encoding column empty instead."
+  data.config.ignoreBinaryEncoding = false
   data.version = "0.0-dev";
   data.url = "https://github.com/PolarGoose/DirectoryOpus-TabLabelizer-plugin";
 
-  var cmd = data.AddColumn()
-  cmd.name = "File MIME type column using file.exe"
-  cmd.method = "OnMimeTypeColumnDataRequested"
-  cmd.label = "MIME type"
-  cmd.autorefresh = true
-  cmd.justify = "right"
+  var col = data.AddColumn()
+  col.name = "MIME type"
+  col.method = "OnColumnDataRequested"
+  col.autorefresh = true
+  col.justify = "right"
+  col.multicol = true
 
-  var cmd = data.AddColumn()
-  cmd.name = "File encoding column using file.exe"
-  cmd.method = "OnEncodingColumnDataRequested"
-  cmd.label = "Enconding"
-  cmd.autorefresh = true
-  cmd.justify = "right"
+  var col = data.AddColumn()
+  col.name = "Encoding"
+  col.method = "OnColumnDataRequested"
+  col.autorefresh = true
+  col.justify = "right"
+  col.multicol = true
 }
 
-function OnMimeTypeColumnDataRequested(/* ScriptColumnData */ data) {
-  var fileFullName = data.item.realpath
-  debug("OnFileType: fileFullName=" + fileFullName)
+function OnColumnDataRequested(/* ScriptColumnData */ data) {
+  var filePath = data.item.realpath
+  debug("OnColumnDataRequested: filePath=" + filePath)
 
-  try {
-    var fileType = getFileType(fileFullName)
-    debug("fileType=" + fileType)
-    data.value = fileType
-  } catch (e) {
-    debug("Exception:" + e)
-    data.value = "<error>"
-  }
-}
-
-function OnEncodingColumnDataRequested(/* ScriptColumnData */ data) {
-  var fileFullName = data.item.realpath
-  debug("OnFileType: fileFullName=" + fileFullName)
-
-  try {
-    var fileType = getEncoding(fileFullName)
-    debug("fileType=" + fileType)
-    data.value = fileType
-  } catch (e) {
-    debug("Exception:" + e)
-    data.value = "<error>"
-  }
-}
-
-function getFileType(/* Path */ fileFullName) {
-  var fileCommandLineArguments = "--mime-type --brief "
-  return runFileExeAndReturnOutput(fileFullName, fileCommandLineArguments)
-}
-
-function getEncoding(/* Path */ fileFullName) {
-  var fileCommandLineArguments = "--mime --brief "
-  var output = runFileExeAndReturnOutput(fileFullName, fileCommandLineArguments)
-  if(output === "") {
-    return ""
-  }
-
-  // The output look like: "text/plain; charset=us-ascii". We need to get "us-ascii"
-  var match = /charset=([^;\r\n]+)/.exec(output)
-  if (match && match.length > 1) {
-    return match[1]
-  }
-
-  throw "Failed to get the text encoding. Output of file.exe: " + output
-}
-
-function runFileExeAndReturnOutput(/* Path */ fileFullName, /* string */ fileCommandLineArguments) {
-  // file.exe tool doesn't work for ftp and UNC paths
-  if (fileFullName.pathpart.substr(0, 2) === "\\\\" || fileFullName.pathpart.substr(0, 3) === "ftp") {
+  if(isUncOrFtpPath(filePath)) {
     debug("Skip UNC or FTP path")
-    return "";
+    data.columns("MIME type").value = "";
+    data.columns("Encoding").value = "";
+    return
   }
 
-  var command = '"' + Script.config.fileExeFullName + '" ' + fileCommandLineArguments + '"' + fileFullName + '"'
+  var mimeType = ""
+  var encoding = ""
+
+  try {
+    var output = getFileMimeTypeAndEncoding(filePath)
+    debug("output from file.exe: " + output)
+
+    // If file.exe fails it might print "cannot open ..." to the output.
+    if (output.indexOf("cannot open") === 0) {
+      throw "File.exe failed. Output of File.exe: " + output
+    }
+
+    // at this point output should look like: "text/plain; charset=us-ascii\n"
+
+    var re = /^(.+);\scharset=(.+)\n$/.exec(output);
+    if(!re) {
+      throw "Failed to parse the output"
+    }
+
+    debug("MimeType=" + re[1] + "; Encoding=" + re[2])
+
+    mimeType = re[1]
+    encoding = re[2]
+
+    if(encoding === "binary" && Script.config.ignoreBinaryEncoding) {
+      encoding = ""
+    }
+  } catch (e) {
+    debug("Exception: " + e)
+  }
+
+  data.columns("MIME type").value = mimeType;
+  data.columns("Encoding").value = encoding;
+}
+
+function getFileMimeTypeAndEncoding(/* Path */ filePath) {
+  var command = '"' + Script.config.fileExeFullName + '" ' + "--mime --brief " + '"' + filePath + '"'
+  if(Script.config.fileExeMagicFileFullName !== "") {
+    command += ' --magic-file "' + Script.config.fileExeMagicFileFullName + '"'
+  }
   return runCommandAndReturnOutput(command)
 }
 
 function runCommandAndReturnOutput(/* string */ command) {
   var tempFileFullName = fsu.GetTempFilePath()
-  var cmdLine = 'cmd.exe /c "' + command + ' > "' + tempFileFullName + '""'
+  var cmdLine = 'cmd.exe /c "' + command + ' > "' + tempFileFullName + '""' + " 2>&1"
   debug("shell.run " + cmdLine)
 
   try {
     var exitCode = shell.run(cmdLine, 0, true)
+    var output = readAllTextIfFileExists(tempFileFullName)
     if (exitCode !== 0) {
-      throw "Failed to execute the command. ExitCode=" + exitCode
+      throw "Failed to execute the command. ExitCode=" + exitCode + ". Output: " + output
     }
-
-    var content = readAllText(tempFileFullName)
-    if (content.indexOf("cannot open") === 0) {
-      throw "File.exe failed. Output of File.exe: " + content
-    }
-
-    return content
+    return output
   }
   finally {
     fso.DeleteFile(tempFileFullName)
   }
 }
 
-function readAllText(/* string */ fileFullName) {
-  var handle = fsu.OpenFile(fileFullName)
+function readAllTextIfFileExists(/* Path */ filePath) {
+  if(!fso.FileExists(filePath)) {
+    return ""
+  }
+
+  var handle = fsu.OpenFile(filePath)
   var content = stt.Decode(handle.Read(), "utf8")
   handle.Close()
   return content
+}
+
+function isUncOrFtpPath(/* Path */ filePath) {
+  var fileFullName = String(filePath)
+  return fileFullName.substr(0, 2) === "\\\\" || fileFullName.substr(0, 3) === "ftp"
 }
 
 function debug(text) {
