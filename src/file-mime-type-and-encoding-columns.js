@@ -38,8 +38,8 @@ function OnColumnDataRequested(/* ScriptColumnData */ data) {
   var filePath = data.item.realpath
   debug("OnColumnDataRequested: filePath=" + filePath)
 
-  if(isUncOrFtpPath(filePath)) {
-    debug("Skip UNC or FTP path")
+  if(isUncOrFtpPath(filePath) || data.item.is_dir) {
+    debug("Skip UNC, FTP or directory path")
     data.columns("MIME type").value = "";
     data.columns("Encoding").value = "";
     return
