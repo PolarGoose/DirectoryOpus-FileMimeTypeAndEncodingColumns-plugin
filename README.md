@@ -17,6 +17,7 @@ You need to have `file.exe` utility installed on your system. The easiest way to
 * Copy the `js` file to the `%AppData%\GPSoftware\Directory Opus\Script AddIns` folder
 * The extra columns will become available in the `Settings`->`File Display Columns`->`Appearance`->`Columns:`.
 * By default, the script uses the `%ProgramFiles%/Git/usr/bin/file.exe` path. If it is installed in a different folder, you need to change the script configuration in the `Script management` menu.
+* The script uses aliases for common MIME types. You can change them by modifying the `mimeTypeAliases` variable at the beginning of the script.
 
 # Portable DOpus use case
 If you use a portable version of DOpus and you don't want to keep 'Git for Windows' installed on your system.<br>

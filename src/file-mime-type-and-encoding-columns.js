@@ -1,3 +1,14 @@
+var mimeTypeAliases = {
+  "application/vnd.microsoft.portable-executable": "exe",
+  "application/x-wine-extension-ini": "ini",
+  "application/octet-stream": "binary",
+  "inode/x-empty": "empty",
+  "text/plain": "text",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+}
+
 var shell = new ActiveXObject("WScript.shell")
 var fso = new ActiveXObject("Scripting.FileSystemObject")
 var fsu = DOpus.FSUtil()
@@ -68,6 +79,11 @@ function OnColumnDataRequested(/* ScriptColumnData */ data) {
 
     mimeType = re[1]
     encoding = re[2]
+
+    mimeTypeAlias = mimeTypeAliases[mimeType]
+    if(mimeTypeAlias) {
+      mimeType = mimeTypeAlias
+    }
 
     if(encoding === "utf-8") {
       var handle = fsu.OpenFile(filePath)
