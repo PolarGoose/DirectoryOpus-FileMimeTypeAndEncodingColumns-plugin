@@ -85,6 +85,16 @@ function OnColumnDataRequested(/* ScriptColumnData */ data) {
       mimeType = mimeTypeAlias
     }
 
+    if(re[1] === "application/vnd.microsoft.portable-executable") {
+      var arch = getExeOrDllArchitecture(filePath)
+      if(arch !== null) {
+        mimeType += " " + arch
+      }
+      if(isManagedExeOrDll(filePath)) {
+        mimeType += " .Net"
+      }
+    }
+
     if(encoding === "utf-8") {
       var handle = fsu.OpenFile(filePath)
       var bom = handle.Read(3)
@@ -145,6 +155,40 @@ function readAllTextIfFileExists(/* Path */ filePath) {
 function isUncOrFtpPath(/* Path */ filePath) {
   var fileFullName = String(filePath)
   return fileFullName.substr(0, 2) === "\\\\" || fileFullName.substr(0, 3) === "ftp"
+}
+
+function isManagedExeOrDll(/* Path */ exeOrDllPath) {
+  var command = "powershell.exe -ExecutionPolicy Bypass -Command [System.Reflection.AssemblyName]::GetAssemblyName(\\\"" + exeOrDllPath + "\\\")"
+  debug("excecute: " + command)
+  var res = shell.run(command, 0, true);
+  return res === 0;
+}
+
+function getExeOrDllArchitecture(exeOrDllPath) {
+  var ado = new ActiveXObject("ADODB.Stream");
+  ado.Type = 1; // binary
+  ado.Open();
+  ado.LoadFromFile(exeOrDllPath);
+
+  // Read the DOS Header to find the offset to the PE header (e_lfanew)
+  ado.Position = 0x3C;
+  var eLfanewOffsetBytes = (new VBArray(ado.Read(4))).toArray();
+  var eLfanewOffset = eLfanewOffsetBytes[0] + (eLfanewOffsetBytes[1] << 8) + (eLfanewOffsetBytes[2] << 16) + (eLfanewOffsetBytes[3] << 24);
+
+  // Go to the COFF File Header (PE Signature is 4 bytes, so skip that)
+  ado.Position = eLfanewOffset + 4;
+
+  // Read the Machine field
+  var machineBytes = (new VBArray(ado.Read(2))).toArray();
+  var machine = machineBytes[0] + (machineBytes[1] << 8);
+
+  switch (machine) {
+    case 0x014c: return "x32";
+    case 0x8664: return "x64";
+    case 0x01c4: return "x32-ARM";
+    case 0xaa64: return "x64-ARM64";
+    default: return null;
+  }
 }
 
 function debug(text) {

@@ -4,6 +4,12 @@ The plugin uses the content of a file and not its extension.<br>
 The screenshot below shows how the encoding and MIME type are correctly determined, even for files with incorrect extensions.
 ![Example](doc/screenshot.png)
 
+# Extra Features
+The plugin adds extra information to the MIME or Encoding columns:
+* Architecture of the dll or exe files
+* Dll or exe file is managed (.Net)
+* UTF-8 file has BOM
+
 # Prerequisites
 You need to have `file.exe` utility installed on your system. The easiest way to get it is to install [Git for Windows](https://git-scm.com/downloads/win)
 
